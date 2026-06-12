@@ -1,0 +1,58 @@
+obs:
+  host: localhost
+  port: 4455
+  password: ""
+
+devices:
+  launch_control: "Launch Control"
+
+# Velocity values for Launch Control button LEDs
+# (same encoding as Launchpad S)
+colors:
+  off: 12
+  red: 15
+  green: 60
+  amber: 63
+
+# ─── Launch Control layout ────────────────────────────────────────────────────
+#
+#  Top knobs (CC):    21  22  23  24  25  26  27  28
+#  Lower knobs (CC):  41  42  43  44  45  46  47  48  (unused)
+#  Buttons (notes):    9  10  11  12  25  26  27  28
+#
+#  Each column is one channel: top knob controls volume, button mutes/unmutes.
+# ──────────────────────────────────────────────────────────────────────────────
+
+knobs:
+
+  # ── VOLUME ──────────────────────────────────────────────────────────────────
+  # "input" must match an OBS audio source name exactly.
+  # min_db / max_db define the dB range mapped to knob positions 0–100.
+  21:
+    label: "Desktop Audio"
+    action: set_volume
+    input: "Desktop Audio"
+    min_db: -60
+    max_db: 0
+
+  # Add more channels below, e.g.:
+  # 22:
+  #   label: "Background Music"
+  #   action: set_volume
+  #   input: "Background Music"
+  #   min_db: -60
+  #   max_db: 0
+
+buttons:
+
+  # ── MUTE ────────────────────────────────────────────────────────────────────
+  # LED: red = muted, green = live
+  9:
+    label: "Desktop Audio"
+    action: toggle_mute
+    input: "Desktop Audio"
+
+  # 10:
+  #   label: "Background Music"
+  #   action: toggle_mute
+  #   input: "Background Music"
