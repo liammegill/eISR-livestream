@@ -1,10 +1,10 @@
 obs:
   host: localhost
   port: 4455
-  password: ""
+  password: JSYWsFSv9tUXtxBD
 
 devices:
-  launchpad: "Launchpad S"
+  launchpad: "Launchpad"
 
 # Velocity values for Launchpad S LED brightness/colour
 colors:
@@ -33,76 +33,159 @@ colors:
 launchpad_buttons:
 
   # ── SCENES ─────────────────────────────────────────────────────────────────
+  # Presses load the scene into OBS preview (Studio Mode).
+  # Use the trigger_transition button (note 8) to push it live.
+  
   0:
     label: "Starting Soon"
     action: scene
     target: "Starting Soon"
 
   1:
-    label: "Main Race"
-    action: scene
-    target: "Main Race"
-
-  2:
     label: "Scoreboard"
     action: scene
     target: "Scoreboard"
 
-  3:
+  2:
     label: "Replay"
     action: scene
     target: "Replay"
 
-  4:
+  3:
     label: "Interview"
     action: scene
     target: "Interview"
 
-  5:
+  4:
     label: "Be Right Back"
     action: scene
     target: "Be Right Back"
 
+  96:
+    label: "UW Cam 1"
+    action: scene
+    target: "UW Cam 1"
+
+  97:
+    label: "UW Cam 2"
+    action: scene
+    target: "UW Cam 2"
+
+  98:
+    label: "UW Cam 3"
+    action: scene
+    target: "UW Cam 3"
+
+  99:
+    label: "UW Cam 4"
+    action: scene
+    target: "UW Cam 4"
+
+  112:
+    label: "PTZ Cam 1"
+    action: scene
+    target: "PTZ Cam 2"
+
+  113:
+    label: "OH Cam 1"
+    action: scene
+    target: "OH Cam 1"
+
+  114:
+    label: "OH Cam 2"
+    action: scene
+    target: "OH Cam 2"
+
+
   # ── OVERLAYS ────────────────────────────────────────────────────────────────
   # "scene" and "source" must match OBS names exactly.
-  16:
-    label: "Lower Third"
-    action: toggle_source
-    scene: "Main Race"
-    source: "Lower Third"
-
-  17:
-    label: "Race Timer"
-    action: toggle_source
-    scene: "Main Race"
-    source: "Race Timer"
-
-  18:
-    label: "Standings Board"
-    action: toggle_source
-    scene: "Main Race"
-    source: "Standings Board"
-
-  19:
-    label: "Sponsor Logo"
-    action: toggle_source
-    scene: "Main Race"
-    source: "Sponsor Logo"
-
-  # ── TRANSITIONS ─────────────────────────────────────────────────────────────
-  # "transition" must match an OBS transition name exactly.
   32:
-    label: "Cut"
-    action: set_transition
-    transition: "Cut"
+    label: "Team Bar Gdansk"
+    action: toggle_source
+    scene: "Team Overlay"
+    source: "Team Bar Gdansk"
 
   33:
-    label: "Fade"
-    action: set_transition
-    transition: "Fade"
+    label: "Team Bar Kumaraguru"
+    action: toggle_source
+    scene: "Team Overlay"
+    source: "Team Bar Kumaraguru"
+
+  34:
+    label: "Team Bar Michigan"
+    action: toggle_source
+    scene: "Team Overlay"
+    source: "Team Bar Michigan"
+
+  35:
+    label: "Team Bar NCKU HPS"
+    action: toggle_source
+    scene: "Team Overlay"
+    source: "Team Bar NCKU HPS"
+
+  36:
+    label: "Team Bar Omer"
+    action: toggle_source
+    scene: "Team Overlay"
+    source: "Team Bar Omer"
+
+  37:
+    label: "Team Bar SIT"
+    action: toggle_source
+    scene: "Team Overlay"
+    source: "Team Bar SIT"
+
+  38:
+    label: "Team Bar Southampton"
+    action: toggle_source
+    scene: "Team Overlay"
+    source: "Team Bar Southampton"
+
+  39:
+    label: "Team Bar SUBC"
+    action: toggle_source
+    scene: "Team Overlay"
+    source: "Team Bar SUBC"
+
+  48:
+    label: "Team Bar UVIC"
+    action: toggle_source
+    scene: "Team Overlay"
+    source: "Team Bar UVIC"
+
+  49:
+    label: "Team Bar Virginia Tech"
+    action: toggle_source
+    scene: "Team Overlay"
+    source: "Team Bar Virginia Tech"
+
+  50:
+    label: "Team Bar Warwick"
+    action: toggle_source
+    scene: "Team Overlay"
+    source: "Team Bar Warwick"
+
+  51:
+    label: "Team Bar Washington"
+    action: toggle_source
+    scene: "Team Overlay"
+    source: "Team Bar Washington"
+
+
+  # ── STREAMING ───────────────────────────────────────────────────────────────
+  # Right-side button 8 (top of right column). Solid red while live.
+  8:
+    label: "Stream"
+    action: start_stop_streaming
 
   # ── RECORDING ───────────────────────────────────────────────────────────────
-  # Right-side button 8 (top of right column).
-  8:
+  # Right-side button 40. Solid red while recording.
+  40:
     label: "Record"
     action: start_stop_recording
+
+  # ── TRANSITION (Studio Mode) ────────────────────────────────────────────────
+  # Bottom-right button 120: pushes the previewed scene to program.
+  120:
+    label: "Go / Transition"
+    action: trigger_transition

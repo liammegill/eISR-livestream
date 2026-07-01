@@ -10,23 +10,36 @@ Button layout (note numbers, USB port at top):
   Row 3:    32  33  34  35  36  37  38  39  | side:  40
   ...
 
+This controller drives OBS in Studio Mode: scene buttons load a scene into
+the PREVIEW (staging the next shot) and the trigger_transition button pushes
+that preview to PROGRAM (live).  Studio Mode is enabled automatically on
+connect so the preview workflow always works.
+
 Supported actions (configured via config_launchpad.yaml):
-  scene                — switch OBS program scene
+  scene                — load a scene into the OBS preview (Studio Mode)
+  trigger_transition   — push the previewed scene to program (go live)
   toggle_source        — show/hide a scene item (overlay)
-  set_transition       — change the active scene transition
+  start_stop_streaming — start or stop the OBS stream
   start_stop_recording — start or stop OBS recording
 
 LED colour convention:
-  green (solid)  = active / on / live
-  amber (solid)  = available but inactive
-  red   (solid)  = configured but not found in OBS
-  red   (flash)  = currently recording  (hardware 280ms double-buffer blink)
+  green (solid)  = available / pressable but not live (scene you can stage,
+                   overlay that's off, idle record/stream, the Go button)
+  red   (solid)  = live in program (on-air scene, active overlay, recording,
+                   streaming)
+  amber (solid)  = the scene staged in preview (next up, not yet live)
+  yellow (solid) = configured but not found in OBS (error)
 """
 
 import sys
+import time
 import mido
 import obsws_python as obs
 import yaml
+
+from midi_utils import open_input, open_output
+
+RECONNECT_INTERVAL = 5  # seconds between reconnection attempts
 
 
 def load_config(path="config_launchpad.yaml"):
@@ -53,7 +66,6 @@ class LaunchpadController:
         self.toggle_states = {}       # note -> bool
         self.source_item_ids = {}     # (scene_name, source_name) -> OBS item ID
         self._not_found_notes = set() # notes whose OBS counterpart doesn't exist
-        self._current_transition = None
 
     # ── Startup ──────────────────────────────────────────────────────────────
 
@@ -68,12 +80,25 @@ class LaunchpadController:
         self.obs_client = obs.ReqClient(
             host=cfg["host"], port=cfg["port"], password=cfg["password"]
         )
-        self.outport = mido.open_output(self.config["devices"]["launchpad"])
+        self.outport = open_output(self.config["devices"]["launchpad"])
+        self._ensure_studio_mode()
         self._reset_leds()
         self._resolve_source_ids()
         self._validate_buttons()
         self._sync_toggle_states()
-        self._sync_transition()
+
+    def _ensure_studio_mode(self):
+        """
+        Enable OBS Studio Mode so the preview workflow works.
+
+        Scene buttons stage into the preview via set_current_preview_scene(),
+        which requires Studio Mode to be active.  Enabling an already-enabled
+        Studio Mode is a harmless no-op.
+        """
+        try:
+            self.obs_client.set_studio_mode_enabled(True)
+        except Exception as e:
+            print(f"Warning: could not enable Studio Mode ({e})")
 
     def _reset_leds(self):
         """
@@ -109,23 +134,15 @@ class LaunchpadController:
     def _validate_buttons(self):
         """
         Check each configured button against live OBS state and mark any that
-        refer to a missing scene, source, or transition.
+        refer to a missing scene or source.
 
         Marked notes are added to self._not_found_notes; update_all_lights()
-        lights these solid red and handle_button() silently ignores them.
+        lights these solid yellow and handle_button() silently ignores them.
         """
         try:
             scene_names = {s["sceneName"] for s in self.obs_client.get_scene_list().scenes}
         except Exception:
             scene_names = None
-
-        try:
-            transition_names = {
-                t["transitionName"]
-                for t in self.obs_client.get_scene_transition_list().transitions
-            }
-        except Exception:
-            transition_names = None
 
         for note, btn in self.config.get("launchpad_buttons", {}).items():
             action = btn.get("action")
@@ -140,11 +157,6 @@ class LaunchpadController:
                 if (scene, source) not in self.source_item_ids:
                     self._not_found_notes.add(note)
                     print(f"Warning: source '{source}' not found in scene '{scene}'")
-
-            elif action == "set_transition":
-                if transition_names is not None and btn.get("transition") not in transition_names:
-                    self._not_found_notes.add(note)
-                    print(f"Warning: transition '{btn['transition']}' not found in OBS")
 
             elif action == "toggle_mute":
                 try:
@@ -188,14 +200,12 @@ class LaunchpadController:
                     self.toggle_states[note] = resp.output_active
                 except Exception:
                     self.toggle_states[note] = False
-
-    def _sync_transition(self):
-        """Read the currently active OBS transition into self._current_transition."""
-        try:
-            resp = self.obs_client.get_current_scene_transition()
-            self._current_transition = resp.transition_name
-        except Exception:
-            self._current_transition = None
+            elif action == "start_stop_streaming":
+                try:
+                    resp = self.obs_client.get_stream_status()
+                    self.toggle_states[note] = resp.output_active
+                except Exception:
+                    self.toggle_states[note] = False
 
     # ── LED helpers ──────────────────────────────────────────────────────────
 
@@ -228,45 +238,70 @@ class LaunchpadController:
         """
         Recompute all LED states from current OBS state and send MIDI.
 
-        Queries the active program scene once per call so all scene buttons
-        update atomically.  Enables hardware flash mode (CC 0 = 40) only when
-        at least one button needs to blink (i.e. recording is active); otherwise
-        uses simple mode (CC 0 = 32) to avoid unintended flicker.
+        Colour convention (see module docstring):
+          red    = live in program (on-air scene, active overlay, recording,
+                   streaming, selected transition)
+          amber  = the scene staged in preview (next up)
+          green  = available / pressable but not live
+          yellow = configured but not found in OBS
+
+        Both the program and preview scene names are queried once per call so
+        all scene buttons update atomically.  Program takes priority over
+        preview: a scene that is both live and previewed shows red.
+
+        Hardware flash mode (CC 0 = 40) is enabled only if a button needs to
+        blink; nothing currently flashes, so simple mode (CC 0 = 32) is used.
         """
         try:
-            current_scene = (
+            program_scene = (
                 self.obs_client.get_current_program_scene().current_program_scene_name
             )
         except Exception:
-            current_scene = None
+            program_scene = None
+
+        try:
+            preview_scene = (
+                self.obs_client.get_current_preview_scene().current_preview_scene_name
+            )
+        except Exception:
+            preview_scene = None
 
         display = {}
         for note, btn in self.config.get("launchpad_buttons", {}).items():
             if note in self._not_found_notes:
-                display[note] = ("red", False)
+                display[note] = ("yellow", False)
                 continue
 
             action = btn.get("action")
 
             if action == "scene":
-                active = btn.get("target") == current_scene
-                display[note] = ("green", False) if active else ("amber", False)
+                target = btn.get("target")
+                if target == program_scene:
+                    display[note] = ("red", False)      # live on air
+                elif target == preview_scene:
+                    display[note] = ("amber", False)    # staged next
+                else:
+                    display[note] = ("green", False)    # available to stage
+
+            elif action == "trigger_transition":
+                display[note] = ("green", False)         # always ready to press
 
             elif action == "toggle_source":
                 on = self.toggle_states.get(note, False)
-                display[note] = ("green", False) if on else ("amber", False)
+                display[note] = ("red", False) if on else ("green", False)
 
             elif action == "toggle_mute":
                 muted = self.toggle_states.get(note, False)
-                display[note] = ("amber", False) if muted else ("green", False)
-
-            elif action == "set_transition":
-                active = btn.get("transition") == self._current_transition
-                display[note] = ("green", False) if active else ("amber", False)
+                # Live (unmuted) audio is on air -> red; muted is available.
+                display[note] = ("green", False) if muted else ("red", False)
 
             elif action == "start_stop_recording":
                 recording = self.toggle_states.get(note, False)
-                display[note] = ("red", True) if recording else ("amber", False)
+                display[note] = ("red", False) if recording else ("green", False)
+
+            elif action == "start_stop_streaming":
+                streaming = self.toggle_states.get(note, False)
+                display[note] = ("red", False) if streaming else ("green", False)
 
         needs_flash = any(flash for _, flash in display.values())
         self.outport.send(mido.Message("control_change", control=0, value=40 if needs_flash else 32))
@@ -299,11 +334,31 @@ class LaunchpadController:
 
         if action == "scene":
             try:
-                self.obs_client.set_current_program_scene(btn["target"])
-                print(f"Scene -> {btn['target']}")
+                self.obs_client.set_current_preview_scene(btn["target"])
+                print(f"Preview -> {btn['target']}")
                 self.update_all_lights()
             except Exception as e:
-                print(f"Error switching scene: {e}")
+                print(f"Error setting preview scene: {e}")
+
+        elif action == "trigger_transition":
+            try:
+                # OBS completes the program<->preview swap only when the
+                # transition animation finishes, so read the transition's
+                # duration up front and wait for it before refreshing the
+                # LEDs; an immediate refresh would show the pre-swap state.
+                try:
+                    duration_ms = (
+                        self.obs_client.get_current_scene_transition().transition_duration
+                        or 0
+                    )
+                except Exception:
+                    duration_ms = 0
+                self.obs_client.trigger_studio_mode_transition()
+                print("Transition -> program (live)")
+                time.sleep(duration_ms / 1000.0 + 0.1)
+                self.update_all_lights()
+            except Exception as e:
+                print(f"Error triggering transition: {e}")
 
         elif action == "toggle_source":
             scene, source = btn["scene"], btn["source"]
@@ -332,14 +387,6 @@ class LaunchpadController:
             except Exception as e:
                 print(f"Error toggling mute: {e}")
 
-        elif action == "set_transition":
-            try:
-                self.obs_client.set_current_scene_transition(btn["transition"])
-                self._current_transition = btn["transition"]
-                print(f"Transition -> {btn['transition']}")
-                self.update_all_lights()
-            except Exception as e:
-                print(f"Error setting transition: {e}")
 
         elif action == "start_stop_recording":
             recording = self.toggle_states.get(note, False)
@@ -356,22 +403,73 @@ class LaunchpadController:
             except Exception as e:
                 print(f"Error toggling recording: {e}")
 
+        elif action == "start_stop_streaming":
+            streaming = self.toggle_states.get(note, False)
+            try:
+                if streaming:
+                    self.obs_client.stop_stream()
+                    self.toggle_states[note] = False
+                    print("Streaming stopped")
+                else:
+                    self.obs_client.start_stream()
+                    self.toggle_states[note] = True
+                    print("Streaming started")
+                self.update_all_lights()
+            except Exception as e:
+                print(f"Error toggling streaming: {e}")
+
+    def _reconnect(self):
+        """
+        Re-open MIDI ports and resync all state after a disconnection.
+
+        Clears previously cached state (source IDs, not-found notes) so that
+        a full re-validation runs against the current OBS state.  The OBS
+        WebSocket connection is not re-established here — if OBS itself has
+        gone away that will surface as errors in update_all_lights() or
+        handle_button() and can be handled separately.
+        """
+        self.source_item_ids = {}
+        self._not_found_notes = set()
+        self.outport = open_output(self.config["devices"]["launchpad"])
+        self._ensure_studio_mode()
+        self._reset_leds()
+        self._resolve_source_ids()
+        self._validate_buttons()
+        self._sync_toggle_states()
+
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
     def run_loop(self):
         """
-        Main MIDI event loop.  Blocks until the input port is closed.
+        Main MIDI event loop with automatic reconnection.
 
-        Only note_on messages with velocity > 0 are acted on; note_off and
-        zero-velocity note_on (button release) are ignored.
+        Opens the input port and processes messages in an inner loop.  If the
+        port raises an exception (e.g. USB unplug) or closes cleanly, the
+        outer loop waits RECONNECT_INTERVAL seconds and attempts to reopen
+        both ports and resync state before listening again.  This repeats
+        indefinitely until the thread is stopped (e.g. process exit).
         """
-        self.update_all_lights()
         device = self.config["devices"]["launchpad"]
-        with mido.open_input(device) as inport:
-            print("Launchpad: Listening...")
-            for msg in inport:
-                if msg.type == "note_on" and msg.velocity > 0:
-                    self.handle_button(msg.note)
+        while True:
+            try:
+                self.update_all_lights()
+                with open_input(device) as inport:
+                    print("Launchpad: Listening...")
+                    for msg in inport:
+                        if msg.type == "note_on" and msg.velocity > 0:
+                            self.handle_button(msg.note)
+                # Loop ended without exception — device closed cleanly.
+                print("Launchpad: disconnected.")
+            except Exception as e:
+                print(f"Launchpad: connection lost ({e})")
+
+            print(f"Launchpad: reconnecting in {RECONNECT_INTERVAL}s...")
+            time.sleep(RECONNECT_INTERVAL)
+            try:
+                self._reconnect()
+                print("Launchpad: reconnected.")
+            except Exception as e:
+                print(f"Launchpad: reconnect failed ({e}), will retry...")
 
     def run(self):
         """

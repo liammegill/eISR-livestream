@@ -16,10 +16,15 @@ Configuration is loaded from config_launch_control.yaml.
 """
 
 import sys
+import time
 
 import mido
 import obsws_python as obs
 import yaml
+
+from midi_utils import open_input, open_output
+
+RECONNECT_INTERVAL = 5  # seconds between reconnection attempts
 
 
 def load_config(path="config_launch_control.yaml"):
@@ -60,7 +65,7 @@ class LaunchControlController:
         self.obs_client = obs.ReqClient(
             host=cfg["host"], port=cfg["port"], password=cfg["password"]
         )
-        self.outport = mido.open_output(self.config["devices"]["launch_control"])
+        self.outport = open_output(self.config["devices"]["launch_control"])
         self._validate_and_sync()
 
     def _list_obs_inputs(self):
@@ -193,22 +198,53 @@ class LaunchControlController:
         for note in self.config.get("buttons", {}).keys():
             self.light_button(note, "off")
 
+    def _reconnect(self):
+        """
+        Re-open MIDI ports and resync all state after a disconnection.
+
+        Clears previously cached not-found sets so that a full re-validation
+        runs against the current OBS state on reconnect.
+        """
+        self._not_found_notes = set()
+        self._not_found_knobs = set()
+        self.outport = open_output(self.config["devices"]["launch_control"])
+        self._validate_and_sync()
+
+    # ── Lifecycle ────────────────────────────────────────────────────────────
+
     def run_loop(self):
         """
-        Main MIDI event loop.  Blocks until the input port is closed.
+        Main MIDI event loop with automatic reconnection.
 
-        Processes control_change messages (knob turns) and note_on messages
-        (button presses) as they arrive from the Launch Control.
+        Opens the input port and processes messages in an inner loop.  If the
+        port raises an exception (e.g. USB unplug) or closes cleanly, the
+        outer loop waits RECONNECT_INTERVAL seconds and attempts to reopen
+        both ports and resync state before listening again.  This repeats
+        indefinitely until the thread is stopped (e.g. process exit).
         """
-        self.update_all_lights()
         device = self.config["devices"]["launch_control"]
-        with mido.open_input(device) as inport:
-            print("Launch Control: Listening...")
-            for msg in inport:
-                if msg.type == "control_change":
-                    self.handle_knob(msg.control, msg.value)
-                elif msg.type == "note_on" and msg.velocity > 0:
-                    self.handle_button(msg.note)
+        while True:
+            try:
+                self.update_all_lights()
+                with open_input(device) as inport:
+                    print("Launch Control: Listening...")
+                    for msg in inport:
+                        if msg.type == "control_change":
+                            self.handle_knob(msg.control, msg.value)
+                        elif msg.type == "note_on" and msg.velocity > 0:
+                            self.handle_button(msg.note)
+                # Loop ended without exception — device closed cleanly.
+                print("Launch Control: disconnected.")
+            except Exception as e:
+                print(f"Launch Control: connection lost ({e})")
+
+            print(f"Launch Control: reconnecting in {RECONNECT_INTERVAL}s...")
+            time.sleep(RECONNECT_INTERVAL)
+            try:
+                self._reconnect()
+                print("Launch Control: reconnected.")
+            except Exception as e:
+                print(f"Launch Control: reconnect failed ({e}), will retry...")
 
     def run(self):
         """
