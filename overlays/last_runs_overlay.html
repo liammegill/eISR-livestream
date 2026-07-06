@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>eISR Latest Runs Overlay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=JetBrains+Mono:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    font-family: 'Inter', sans-serif;
+    overflow: hidden;
+  }
+
+  :root {
+    --eisr-dark-blue:  #1D2B4E;
+    --eisr-light-blue: #549BD4;
+    --eisr-yellow:     #F3BC3F;
+    --abyss:           #051119;
+    --text-bright:     #eef6f8;
+    --text-dim:        #7ea0b3;
+  }
+
+  .stage {
+    position: absolute;
+    left: 40px;
+    top: 40px;
+    width: 1000px;
+  }
+
+  .header-bar {
+    display: flex;
+    align-items: center;
+    padding: 14px 22px;
+    background: linear-gradient(90deg, var(--eisr-light-blue) 20%, var(--eisr-dark-blue) 100%);
+    border-radius: 6px 6px 0 0;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+    border-left: 10px solid var(--eisr-yellow);
+  }
+
+  .header-bar .title {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 600;
+    font-size: 24px;
+    letter-spacing: 0.5px;
+    color: var(--text-bright);
+  }
+
+  .grid-row {
+    display: grid;
+    grid-template-columns: 90px 60px 80px 1fr 120px 90px 70px 110px;
+    align-items: center;
+  }
+
+  .column-header {
+    padding: 8px 22px;
+    background: var(--eisr-dark-blue);
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    border-left: 10px solid var(--eisr-yellow);
+  }
+
+  .column-header span {
+    text-align: center;
+  }
+
+  .column-header span:nth-child(4) {
+    text-align: left;
+  }
+
+  .runs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-top: 3px;
+  }
+
+  /* Light grey, mostly-opaque boxes - no shadow, so they read as a
+     lightweight strip over the video rather than a solid panel. */
+  .run-row {
+    padding: 10px 22px;
+    background: rgba(225, 225, 225, 0.6);
+    border-radius: 4px;
+  }
+
+  .run-number {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 18px;
+    color: var(--abyss);
+    text-align: center;
+  }
+
+  .run-number .run-meta {
+    display: block;
+    font-family: 'Inter', sans-serif;
+    font-weight: 400;
+    font-style: italic;
+    font-size: 11px;
+    color: rgba(5, 17, 25, 0.65);
+  }
+
+  .flag-cell, .logo-cell {
+    display: flex;
+    justify-content: center;
+  }
+
+  .logo-cell {
+    padding-right: 16px;
+    padding-left: 10px;
+  }
+
+  .flag-cell img {
+    width: 32px;
+    height: auto;
+    display: block;
+  }
+
+  .logo-cell img {
+    width: 70px;
+    height: 32px;
+    object-fit: contain;
+  }
+
+  .team-name {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--abyss);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .speed-value, .time-value, .faults-value, .status-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 15px;
+    color: var(--abyss);
+    text-align: center;
+  }
+
+  .status-value {
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Flash green on new/changed data, hold briefly, then fade back to the
+     normal box colour - same effect as the subrace.eu scoreboard, just
+     held a bit longer before it trails off. */
+  .run-row.flash {
+    animation: flashGreen 3s ease-out forwards;
+  }
+
+  @keyframes flashGreen {
+    0%   { background-color: rgba(56, 193, 114, 0.85); }
+    40%  { background-color: rgba(56, 193, 114, 0.85); }
+    100% { background-color: rgba(225, 225, 225, 0.6); }
+  }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="header-bar"><span class="title">Latest Runs</span></div>
+  <div class="grid-row column-header">
+    <span>Run</span>
+    <span></span>
+    <span></span>
+    <span>Team</span>
+    <span>Speed [kts]</span>
+    <span>Time</span>
+    <span>Faults</span>
+    <span>Status</span>
+  </div>
+  <div class="runs-list" id="runsList"></div>
+</div>
+
+<script>
+  // ---- Results feed (2026 only - see subrace.eu for the multi-year version) ----
+  const SITE_URL = 'https://subrace.eu';
+  const SCOREBOARD_URL = 'https://script.google.com/macros/s/AKfycbyOrM7p0EiaC1ygMWIlJBY5v7L9ZhyTmO3uf9r-afm2nJU4gBjKKk58Ekhr18h0Oqf7/exec?gid=262663368';
+  const POLL_INTERVAL_MS = 15000;
+  const RUNS_SHOWN = 8;
+
+  // ---- Local team lookup (data/teams.yaml) --------------------------------
+  // This HTML file lives in overlays/, teams.yaml lives in data/ next to it.
+  const FLAGS_DIR = '../data/flags/';
+  const CUSTOM_FLAGS = {
+    // 'QC': FLAGS_DIR + 'QC.png',  // already matches the default convention
+  };
+
+  // Same minimal YAML parser as team_overlay.html (flat "key:" mappings,
+  // no lists/multi-line strings) - avoids pulling in a full YAML library.
+  function parseSimpleYaml(text) {
+    const lines = text.split(/\r?\n/);
+    const root = {};
+    const stack = [{ indent: -1, obj: root }];
+
+    for (const rawLine of lines) {
+      const line = rawLine.replace(/#.*$/, '');
+      if (!line.trim()) continue;
+
+      const indent = line.match(/^ */)[0].length;
+      const trimmed = line.trim();
+      const colonIdx = trimmed.indexOf(':');
+      if (colonIdx === -1) continue;
+
+      const key = trimmed.slice(0, colonIdx).trim();
+      let value = trimmed.slice(colonIdx + 1).trim();
+
+      while (stack.length > 1 && indent <= stack[stack.length - 1].indent) {
+        stack.pop();
+      }
+      const parent = stack[stack.length - 1].obj;
+
+      if (value === '') {
+        const child = {};
+        parent[key] = child;
+        stack.push({ indent, obj: child });
+      } else {
+        if ((value.startsWith('"') && value.endsWith('"')) ||
+            (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1);
+        }
+        parent[key] = value;
+      }
+    }
+    return root;
+  }
+
+  let teamsCache = null;
+  let feedSlugToId = null; // built from each team's scoreboardTeam (see data/teams.yaml)
+
+  async function loadTeams() {
+    if (teamsCache) return teamsCache;
+    const res = await fetch('../data/teams.yaml', { cache: 'no-store' });
+    const text = await res.text();
+    teamsCache = parseSimpleYaml(text).teams || {};
+
+    feedSlugToId = {};
+    for (const [id, team] of Object.entries(teamsCache)) {
+      const feedSlug = (team.scoreboardTeam || id).toLowerCase();
+      feedSlugToId[feedSlug] = id;
+    }
+    return teamsCache;
+  }
+
+  function resolveLocalTeam(slug, teams) {
+    if (!slug || !feedSlugToId) return null;
+    const id = feedSlugToId[slug.toLowerCase()];
+    return id ? { id, ...teams[id] } : null;
+  }
+
+  // This overlay sits on light run-row boxes, unlike team_overlay.html's
+  // dark card - so teams whose teams.yaml logoUrl points at a white variant
+  // (made for that dark background) need the regular-colour logo here instead.
+  const LOGO_OVERRIDES = {
+    default: '../data/logos/logoT_eISR.png',
+    gdansk: '../data/logos/logoT_Gdansk.png',
+  };
+
+  function prettifySlug(slug) {
+    if (!slug) return '—';
+    return slug.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
+  function resolveFlagUrl(code) {
+    const upper = (code || '').toUpperCase();
+    return CUSTOM_FLAGS[upper] || (FLAGS_DIR + upper + '.png');
+  }
+
+  // ---- CSV helpers (same approach as subrace.eu) --------------------------
+  function csvToArray(str, delimiter = ',') {
+    const rows = str.trim().split('\n');
+    return rows.map((row) => row.split(delimiter));
+  }
+
+  function formatDate(dateStr) {
+    if (!dateStr) return '--/--';
+    const [day, month] = dateStr.split('/');
+    return `${day}/${month}`;
+  }
+
+  function formatTime(timeStr) {
+    if (!timeStr) return '--:--';
+    const [hour, minute] = timeStr.split(':');
+    return `${hour}:${minute}`;
+  }
+
+  function rowsAreEqual(a, b) {
+    if (!a || !b || a.length !== b.length) return false;
+    return a.every((val, i) => val === b[i]);
+  }
+
+  // ---- Rendering -----------------------------------------------------------
+  let previousData = [];
+
+  function renderRuns(data, teams) {
+    const list = document.getElementById('runsList');
+    list.innerHTML = '';
+
+    const sorted = data
+      .slice(1)
+      .filter((row) => row.length > 1)
+      .sort((a, b) => parseFloat(b[0]) - parseFloat(a[0]))
+      .slice(0, RUNS_SHOWN);
+
+    sorted.forEach((row) => {
+      const prevRow = previousData.slice(1).find((p) => p[0] === row[0]);
+      const isNewOrChanged = previousData.length > 0 && (!prevRow || !rowsAreEqual(prevRow, row));
+
+      const runNum = parseFloat(row[0]);
+      const displayRun = (!isNaN(runNum) && Number.isInteger(runNum)) ? row[0] : '-';
+      const dateStr = formatDate(row[1]);
+      const timeStr = formatTime(row[2]);
+
+      const slug = row[3] || '';
+      const localTeam = resolveLocalTeam(slug, teams);
+      const teamName = localTeam ? (localTeam.teamName || slug) : prettifySlug(slug);
+      const flagCode = ((localTeam && localTeam.flagCode) || row[5] || '').toUpperCase();
+      const logoUrl = localTeam && localTeam.logoUrl
+        ? (LOGO_OVERRIDES[localTeam.id] || localTeam.logoUrl)
+        : `${SITE_URL}/logot_${slug.toLowerCase()}`;
+
+      const speed = row[9] ? `${row[8]} / ${row[9]}` : (row[8] || '');
+      const time = row[10] || '';
+      const faults = row[11] || '';
+      const status = row[7] || '';
+
+      const rowEl = document.createElement('div');
+      rowEl.className = 'grid-row run-row' + (isNewOrChanged ? ' flash' : '');
+      rowEl.innerHTML = `
+        <div class="run-number">${displayRun}<span class="run-meta">${dateStr}, ${timeStr}</span></div>
+        <div class="flag-cell"><img src="${resolveFlagUrl(flagCode)}" alt=""
+             onerror="this.onerror=null;this.src='https://flagsapi.com/${flagCode}/flat/64.png';"></div>
+        <div class="logo-cell"><img src="${logoUrl}" alt=""></div>
+        <div class="team-name">${teamName}</div>
+        <div class="speed-value">${speed}</div>
+        <div class="time-value">${time}</div>
+        <div class="faults-value">${faults}</div>
+        <div class="status-value">${status}</div>
+      `;
+      list.appendChild(rowEl);
+    });
+  }
+
+  function poll() {
+    fetch(SCOREBOARD_URL, { cache: 'no-store' })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.text();
+      })
+      .then(async (csvText) => {
+        const data = csvToArray(csvText);
+        const teams = await loadTeams();
+        renderRuns(data, teams);
+        previousData = data;
+      })
+      .catch((err) => console.error('Error fetching scoreboard CSV:', err));
+  }
+
+  poll();
+  setInterval(poll, POLL_INTERVAL_MS);
+</script>
+
+</body>
+</html>

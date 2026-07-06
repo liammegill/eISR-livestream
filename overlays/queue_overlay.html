@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>eISR Queue Overlay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=JetBrains+Mono:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    font-family: 'Inter', sans-serif;
+    overflow: hidden;
+  }
+
+  :root {
+    --eisr-dark-blue:  #1D2B4E;
+    --eisr-light-blue: #549BD4;
+    --eisr-yellow:     #F3BC3F;
+    --abyss:           #051119;
+    --text-bright:     #eef6f8;
+    --text-dim:        #7ea0b3;
+  }
+
+  .stage {
+    position: absolute;
+    left: 40px;
+    top: 40px;
+    width: 1000px;
+  }
+
+  .header-bar {
+    display: flex;
+    align-items: center;
+    padding: 14px 22px;
+    background: linear-gradient(90deg, var(--eisr-light-blue) 20%, var(--eisr-dark-blue) 100%);
+    border-radius: 6px 6px 0 0;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+    border-left: 10px solid var(--eisr-yellow);
+  }
+
+  .header-bar .title {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 600;
+    font-size: 24px;
+    letter-spacing: 0.5px;
+    color: var(--text-bright);
+  }
+
+  .queue-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-top: 3px;
+  }
+
+  /* Space between the morning and afternoon heats. */
+  .heat-gap {
+    height: 28px;
+  }
+
+  .queue-row {
+    display: flex;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  /* Light grey, mostly-opaque boxes - no shadow, so they read as a
+     lightweight strip over the video rather than a solid panel. Same
+     colour/transparency as overlays/last_runs_overlay.html's rows. */
+  .order-box, .team-box {
+    background: rgba(225, 225, 225, 0.6);
+    border-radius: 4px;
+  }
+
+  .order-box {
+    width: 60px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 22px;
+    color: var(--abyss);
+  }
+
+  .team-box {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    padding: 10px 22px;
+  }
+
+  .flag-cell, .logo-cell {
+    display: flex;
+    justify-content: center;
+  }
+
+  .logo-cell {
+    padding-right: 16px;
+    padding-left: 10px;
+  }
+
+  .flag-cell img {
+    width: 32px;
+    height: auto;
+    display: block;
+  }
+
+  .logo-cell img {
+    width: 70px;
+    height: 32px;
+    object-fit: contain;
+  }
+
+  .team-name {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--abyss);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .divider {
+    color: rgba(5, 17, 25, 0.4);
+    font-size: 14px;
+    margin: 0 10px;
+    flex-shrink: 0;
+  }
+
+  .submarine-name {
+    font-family: 'Inter', sans-serif;
+    font-weight: 400;
+    font-style: italic;
+    font-size: 15px;
+    color: rgba(5, 17, 25, 0.65);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    /* Italic glyphs slant past their own box on the right - without this,
+       overflow:hidden clips the last letter even when there's plenty of
+       room in the row. */
+    padding-right: 10px;
+  }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="header-bar"><span class="title">Morning Heat</span></div>
+  <div class="queue-rows" id="morningRows"></div>
+
+  <div class="heat-gap"></div>
+
+  <div class="header-bar"><span class="title">Afternoon Heat</span></div>
+  <div class="queue-rows" id="afternoonRows"></div>
+</div>
+
+<script>
+  // ---- Race order feed ------------------------------------------------------
+  const QUEUE_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTIpyMklz1Fe9I4WmfftpXHFMTzSnt5DGIdUygu1s5QELKXpLkJ-R5-wWYV99FDXfG__cE6J-6shLUl/pub?gid=1354487004&single=true&output=csv';
+  const POLL_INTERVAL_MS = 15000;
+
+  // ---- Local team lookup (data/teams.yaml) --------------------------------
+  // This HTML file lives in overlays/, teams.yaml lives in data/ next to it.
+  const FLAGS_DIR = '../data/flags/';
+  const CUSTOM_FLAGS = {
+    // 'QC': FLAGS_DIR + 'QC.png',  // already matches the default convention
+  };
+
+  // Same minimal YAML parser as team_overlay.html / last_runs_overlay.html
+  // (flat "key:" mappings, no lists/multi-line strings).
+  function parseSimpleYaml(text) {
+    const lines = text.split(/\r?\n/);
+    const root = {};
+    const stack = [{ indent: -1, obj: root }];
+
+    for (const rawLine of lines) {
+      const line = rawLine.replace(/#.*$/, '');
+      if (!line.trim()) continue;
+
+      const indent = line.match(/^ */)[0].length;
+      const trimmed = line.trim();
+      const colonIdx = trimmed.indexOf(':');
+      if (colonIdx === -1) continue;
+
+      const key = trimmed.slice(0, colonIdx).trim();
+      let value = trimmed.slice(colonIdx + 1).trim();
+
+      while (stack.length > 1 && indent <= stack[stack.length - 1].indent) {
+        stack.pop();
+      }
+      const parent = stack[stack.length - 1].obj;
+
+      if (value === '') {
+        const child = {};
+        parent[key] = child;
+        stack.push({ indent, obj: child });
+      } else {
+        if ((value.startsWith('"') && value.endsWith('"')) ||
+            (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1);
+        }
+        parent[key] = value;
+      }
+    }
+    return root;
+  }
+
+  let teamsCache = null;
+  let feedSlugToId = null; // built from each team's scoreboardTeam (see data/teams.yaml)
+
+  async function loadTeams() {
+    if (teamsCache) return teamsCache;
+    const res = await fetch('../data/teams.yaml', { cache: 'no-store' });
+    const text = await res.text();
+    teamsCache = parseSimpleYaml(text).teams || {};
+
+    feedSlugToId = {};
+    for (const [id, team] of Object.entries(teamsCache)) {
+      const feedSlug = (team.scoreboardTeam || id).toLowerCase();
+      feedSlugToId[feedSlug] = id;
+    }
+    return teamsCache;
+  }
+
+  function resolveLocalTeam(slug, teams) {
+    if (!slug || !feedSlugToId) return null;
+    const id = feedSlugToId[slug.toLowerCase()];
+    return id ? { id, ...teams[id] } : null;
+  }
+
+  // This overlay sits on light boxes, unlike team_overlay.html's dark card -
+  // so teams whose teams.yaml logoUrl points at a white variant (made for
+  // that dark background) need the regular-colour logo here instead.
+  const LOGO_OVERRIDES = {
+    default: '../data/logos/logoT_eISR.png',
+    gdansk: '../data/logos/logoT_Gdansk.png',
+  };
+
+  function prettifySlug(slug) {
+    if (!slug) return '—';
+    return slug.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
+  function resolveFlagUrl(code) {
+    const upper = (code || '').toUpperCase();
+    return CUSTOM_FLAGS[upper] || (FLAGS_DIR + upper + '.png');
+  }
+
+  // ---- CSV helpers (same approach as the other overlays) --------------------
+  function csvToArray(str, delimiter = ',') {
+    const rows = str.trim().split('\n');
+    return rows.map((row) => row.split(delimiter).map((cell) => cell.trim()));
+  }
+
+  // ---- Rendering -----------------------------------------------------------
+  function renderHeat(containerId, slugs, teams) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+
+    slugs.forEach((slug, i) => {
+      const localTeam = resolveLocalTeam(slug, teams);
+      const teamName = localTeam ? (localTeam.teamName || slug) : prettifySlug(slug);
+      const submarineName = (localTeam && localTeam.submarineName) || '';
+      const flagCode = ((localTeam && localTeam.flagCode) || '').toUpperCase();
+      const logoUrl = localTeam && localTeam.logoUrl
+        ? (LOGO_OVERRIDES[localTeam.id] || localTeam.logoUrl)
+        : '';
+
+      const rowEl = document.createElement('div');
+      rowEl.className = 'queue-row';
+      rowEl.innerHTML = `
+        <div class="order-box">${i + 1}</div>
+        <div class="team-box">
+          <div class="flag-cell"><img src="${resolveFlagUrl(flagCode)}" alt=""
+               onerror="this.onerror=null;this.src='https://flagsapi.com/${flagCode}/flat/64.png';"></div>
+          <div class="logo-cell">${logoUrl ? `<img src="${logoUrl}" alt="">` : ''}</div>
+          <div class="team-name">${teamName}</div>
+          <span class="divider">/</span>
+          <div class="submarine-name">${submarineName}</div>
+        </div>
+      `;
+      container.appendChild(rowEl);
+    });
+  }
+
+  function poll() {
+    fetch(QUEUE_URL, { cache: 'no-store' })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.text();
+      })
+      .then(async (csvText) => {
+        const data = csvToArray(csvText);
+        const teams = await loadTeams();
+        const rows = data.slice(1).filter((row) => row.length >= 2);
+        const morningSlugs = rows.map((row) => row[0]).filter(Boolean);
+        const afternoonSlugs = rows.map((row) => row[1]).filter(Boolean);
+        renderHeat('morningRows', morningSlugs, teams);
+        renderHeat('afternoonRows', afternoonSlugs, teams);
+      })
+      .catch((err) => console.error('Error fetching queue CSV:', err));
+  }
+
+  poll();
+  setInterval(poll, POLL_INTERVAL_MS);
+</script>
+
+</body>
+</html>

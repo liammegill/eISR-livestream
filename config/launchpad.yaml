@@ -1,0 +1,237 @@
+# Launchpad MIDI controller configuration.
+# OBS connection settings now live in config/obs.yaml (shared by all modules).
+#
+# Drives camera switching, overlay visibility, streaming, recording and
+# transitions - see launchpad/launchpad_obs.py. Race-phase timing has moved
+# to the Launch Control (config/launch_control.yaml).
+
+devices:
+  launchpad: "Launchpad S"
+
+# Velocity values for Launchpad S LED brightness/colour
+colors:
+  "off": 12
+  red: 15
+  green: 60
+  amber: 63
+  yellow: 62
+
+# ─── Launchpad S pad layout (note numbers) ────────────────────────────────────
+#
+#  The USB port is at the TOP of the device. Note numbering starts at the top.
+#
+#  Top row (USB side):   0   1   2   3   4   5   6   7  | side:   8
+#  Overlays row:        16  17  18  19  20  21  22  23  | side:  24
+#  Transitions row:     32  33  34  35  36  37  38  39  | side:  40
+#  (unused):            48  49  50  51  52  53  54  55  | side:  56
+#  UW cam on/off:       64  65  66  67  68  69  70  71  | side:  72
+#  PTZ/OH cam on/off:   80  81  82  83  84  85  86  87  | side:  88
+#  UW cams:             96  97  98  99 100 101 102 103  | side: 104
+#  PTZ/OH cams:         112 113 114 115 116 117 118 119  | side: 120
+#
+#  On/off rows sit directly above the camera they control (e.g. note 64
+#  toggles the camera on note 80, note 96 toggles the camera on note 112).
+#
+#  Top automap buttons are sent as CC (control_change) messages 104-111 -
+#  a completely separate MIDI namespace from the grid's note numbers above,
+#  despite "104" appearing in both (note 104 is the side LED of the
+#  96-103 grid row; CC 104 is the top-left automap button). alive_led below
+#  uses the CC one.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Blinks the top-left automap button on/off every `interval` seconds, as a
+# simple heartbeat that the app + MIDI connection are alive.
+alive_led:
+  type: cc
+  number: 104
+  interval: 5
+
+# `action` is one of:
+#   scene                - load a scene into the OBS preview (Studio Mode);
+#                          use the trigger_transition button to push it live
+#   trigger_transition   - push the previewed scene to program (go live)
+#   toggle_source        - show/hide a scene item (overlay) within `scene`
+#   toggle_camera        - remove/restore the RTSP URL (config/cameras.yaml)
+#                          on a camera's OBS Media Source, fully stopping/
+#                          restarting that incoming stream (not just hiding
+#                          it) to save bandwidth/decode load
+#   start_stop_streaming - start or stop the OBS stream
+#   start_stop_recording - start or stop OBS recording
+launchpad_buttons:
+
+  # ── CAMERA ON/OFF ────────────────────────────────────────────────────────────
+  # See config/cameras.yaml. LED: red = stream on, green = stream off.
+
+  64:
+    label: "UW Cam 1 On/Off"
+    action: toggle_camera
+    camera: "UW Cam 1"
+
+  67:
+    label: "UW Cam 2 On/Off"
+    action: toggle_camera
+    camera: "UW Cam 2"
+
+  65:
+    label: "UW Cam 3 On/Off"
+    action: toggle_camera
+    camera: "UW Cam 3"
+
+  66:
+    label: "UW Cam 4 On/Off"
+    action: toggle_camera
+    camera: "UW Cam 4"
+
+  80:
+    label: "PTZ Cam 1 On/Off"
+    action: toggle_camera
+    camera: "PTZ Cam 1"
+
+  81:
+    label: "OH Cam 1 On/Off"
+    action: toggle_camera
+    camera: "OH Cam 1"
+
+  82:
+    label: "OH Cam 2 On/Off"
+    action: toggle_camera
+    camera: "OH Cam 2"
+
+  # ── SCENES ─────────────────────────────────────────────────────────────────
+  # Presses load the scene into OBS preview (Studio Mode).
+  # Use the trigger_transition button (note 120) to push it live.
+  #
+  # `camera` (where present) links the button to config/cameras.yaml so its
+  # LED reflects that camera's stream state instead of plain scene colouring:
+  # off if the stream's been switched off (or was never configured), a brief
+  # yellow blink for 5s right after switching back on (stream starting up),
+  # then normal red/amber/green scene-select colouring once settled.
+
+  96:
+    label: "UW Cam 1"
+    action: scene
+    target: "UW Cam 1"
+    camera: "UW Cam 1"
+
+  97:
+    label: "UW Cam 3"
+    action: scene
+    target: "UW Cam 3"
+    camera: "UW Cam 3"
+
+  98:
+    label: "UW Cam 4"
+    action: scene
+    target: "UW Cam 4"
+    camera: "UW Cam 4"
+
+  99:
+    label: "UW Cam 2"
+    action: scene
+    target: "UW Cam 2"
+    camera: "UW Cam 2"
+
+  101:
+    label: "UW Cam 3 Zoom"
+    action: scene
+    target: "UW Cam 3 Zoom"
+    camera: "UW Cam 3 Zoom"
+
+  102:
+    label: "UW Cam 4 Zoom"
+    action: scene
+    target: "UW Cam 4 Zoom"
+    camera: "UW Cam 4 Zoom"
+
+  112:
+    label: "PTZ Cam 1"
+    action: scene
+    target: "PTZ Cam 1"
+    camera: "PTZ Cam 1"
+
+  113:
+    label: "OH Cam 1"
+    action: scene
+    target: "OH Cam 1"
+    camera: "OH Cam 1"
+
+  114:
+    label: "OH Cam 2"
+    action: scene
+    target: "OH Cam 2"
+    camera: "OH Cam 2"
+
+  118:
+    label: "Basin Overview"
+    action: scene
+    target: "Basin Overview"
+
+  # ── OVERLAYS ────────────────────────────────────────────────────────────────
+  # All overlays live as sources inside "Overlay Scene", which is itself
+  # nested into every camera scene - so toggling a source's visibility here
+  # shows/hides it everywhere at once. "scene" and "source" must match OBS
+  # names exactly. Only one of these is ever shown at a time - turning one on
+  # hides whichever other one was on. Note 7 (clear_overlays) hides all of
+  # them and always stays unlit, since it has no on/off state of its own.
+
+  0:
+    label: "Starting Soon Overlay"
+    action: toggle_source
+    scene: "Overlay Scene"
+    source: "Starting Soon Overlay"
+
+  1:
+    label: "Queue Overlay"
+    action: toggle_source
+    scene: "Overlay Scene"
+    source: "Queue Overlay"
+
+  2:
+    label: "Team Overlay"
+    action: toggle_source
+    scene: "Overlay Scene"
+    source: "Team Overlay"
+
+  3:
+    label: "Last Runs Overlay"
+    action: toggle_source
+    scene: "Overlay Scene"
+    source: "Last Runs Overlay"
+
+  4:
+    label: "Best Runs Overlay"
+    action: toggle_source
+    scene: "Overlay Scene"
+    source: "Best Runs Overlay"
+
+  5:
+    label: "Be Right Back Overlay"
+    action: scene
+    target: "Be Right Back Overlay"
+
+  6:
+    label: "End of Day Overlay"
+    action: scene
+    target: "End of Day Overlay"
+
+  7:
+    label: "Clear Overlays"
+    action: clear_overlays
+
+  # ── STREAMING ───────────────────────────────────────────────────────────────
+  # Right-side button 8 (top of right column). Solid red while live.
+  8:
+    label: "Stream"
+    action: start_stop_streaming
+
+  # ── RECORDING ───────────────────────────────────────────────────────────────
+  # Right-side button 40. Solid red while recording.
+  40:
+    label: "Record"
+    action: start_stop_recording
+
+  # ── TRANSITION (Studio Mode) ────────────────────────────────────────────────
+  # Bottom-right button 120: pushes the previewed scene to program.
+  120:
+    label: "Go / Transition"
+    action: trigger_transition

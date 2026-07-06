@@ -1,0 +1,5 @@
+# Shared OBS websocket connection settings.
+# Used by every module that needs to talk to OBS (control UI, launchpad, etc).
+host: localhost
+port: 4455
+password: JSYWsFSv9tUXtxBD

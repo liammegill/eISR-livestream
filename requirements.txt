@@ -1,0 +1,4 @@
+obsws-python
+PyYAML
+mido
+python-rtmidi

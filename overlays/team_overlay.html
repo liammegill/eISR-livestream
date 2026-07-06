@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>eISR Team Overlay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=JetBrains+Mono:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    font-family: 'Inter', sans-serif;
+    overflow: hidden;
+  }
+
+  :root {
+    --eisr-dark-blue:  #1D2B4E;
+    --eisr-light-blue: #549BD4;
+    --eisr-yellow:     #F3BC3F;
+
+    --mid-depth:     #0f3350;
+    --abyss:         #051119;
+    --brass-dim:     #7d6339;
+    --sonar-cyan:    #4fd9d3;
+    --text-bright:   #eef6f8;
+    --text-dim:      #7ea0b3;
+
+    --row-icon-height: 56px;
+  }
+
+  .stage {
+    width: 1000px;
+    padding: 40px 0 0 40px;
+  }
+
+  .card {
+    width: 900px;
+    background: var(--eisr-dark-blue);
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+    border-left: 10px solid var(--eisr-yellow);
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+
+  .card.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Row 1: flag, logo, team name, status */
+  .row-top {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 2px 22px;
+    background: linear-gradient(90deg, var(--eisr-light-blue) 50%, var(--eisr-dark-blue) 100%);
+  }
+
+  .flag-wrap {
+    position: relative;
+    width: calc(var(--row-icon-height) + 5px);
+    height: calc(var(--row-icon-height) + 5px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transform: translateY(3px);
+  }
+
+  .flag img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .logo-badge {
+    height: calc(var(--row-icon-height) - 10px);
+    max-height: var(--row-icon-height);
+    overflow: hidden;
+    color: var(--text-bright);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .logo-badge img {
+    height: 100%;
+    width: auto;
+    max-width: 160px;
+    object-fit: contain;
+  }
+
+  .team-name {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 600;
+    font-size: 30px;
+    color: var(--text-bright);
+    letter-spacing: 0.5px;
+    flex: 1;
+    height: var(--row-icon-height);
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .status-pill {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--abyss);
+    background: var(--sonar-cyan);
+    padding: 6px 14px;
+    border-radius: 20px;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  /* Row 2: one continuous bar, split into three sections by thin
+     vertical white divider lines - university/submarine | speed | time */
+  .row-bottom {
+    display: flex;
+    align-items: center;
+    padding: 9px 22px;
+    background: var(--mid-depth);
+    font-family: 'Inter', sans-serif;
+  }
+
+  .info-section {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    overflow: hidden;
+  }
+
+  .university {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text-bright);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .info-section .divider {
+    color: var(--brass-dim);
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .submarine {
+    font-size: 15px;
+    font-weight: 400;
+    font-style: italic;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-right: 5px;
+  }
+
+  .vdivider {
+    width: 1px;
+    align-self: stretch;
+    margin: 0 18px;
+    background: rgba(255, 255, 255, 0.5);
+    flex-shrink: 0;
+  }
+
+  /* Speed / time - text only shows once the phase reaches on-course/finish
+     (see .stats-group.is-active); no left border/box, just plain sections
+     separated by the vertical dividers above */
+  .stats-group {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .stat-section {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .stat-label {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    visibility: hidden;
+  }
+
+  .stat-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 20px;
+    color: var(--text-bright);
+    white-space: nowrap;
+    visibility: hidden;
+  }
+
+  .stats-group.is-active .stat-label,
+  .stats-group.is-active .stat-value {
+    visibility: visible;
+  }
+
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="card" id="card">
+
+    <div class="row-top">
+      <div class="flag-wrap">
+        <span class="flag" id="flag"></span>
+      </div>
+      <div class="logo-badge" id="logoBadge"></div>
+      <div class="team-name" id="teamName"></div>
+      <div class="status-pill" id="statusPill"></div>
+    </div>
+
+    <div class="row-bottom">
+      <div class="info-section">
+        <span class="university" id="university"></span>
+        <span class="divider">/</span>
+        <span class="submarine" id="submarineName"></span>
+      </div>
+
+      <div class="vdivider"></div>
+
+      <div class="stats-group" id="statsGroup">
+        <div class="stat-section">
+          <span class="stat-label">Speed</span>
+          <span class="stat-value" id="speedValue">-.-- kts</span>
+        </div>
+
+        <div class="vdivider"></div>
+
+        <div class="stat-section">
+          <span class="stat-label">Time</span>
+          <span class="stat-value" id="courseTimeValue">0:00:000</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+  // ---- Which team's data to show first when this overlay loads --------
+  // Change this to switch the default team, or drive it entirely via
+  // window.loadTeam('someTeamId') from your control stack instead.
+  const DEFAULT_TEAM_ID = 'default';
+
+  // ---- Team config (data/teams.yaml) --------------------------------------
+  // This HTML file lives in overlays/, teams.yaml lives in data/ next to it.
+  // Each team entry supports:
+  //   flagCode, logoUrl, teamName, university, submarineName
+  //
+  // NOTE: this is a minimal, hand-rolled parser for a flat YAML subset
+  // (nested "key:" mappings with simple scalar values only - no lists, no
+  // multi-line strings). It deliberately avoids pulling in a full YAML
+  // library over a CDN so this overlay keeps working with no internet
+  // connection during the event.
+  function parseSimpleYaml(text) {
+    const lines = text.split(/\r?\n/);
+    const root = {};
+    const stack = [{ indent: -1, obj: root }];
+
+    for (const rawLine of lines) {
+      const line = rawLine.replace(/#.*$/, ''); // strip comments
+      if (!line.trim()) continue;
+
+      const indent = line.match(/^ */)[0].length;
+      const trimmed = line.trim();
+      const colonIdx = trimmed.indexOf(':');
+      if (colonIdx === -1) continue;
+
+      const key = trimmed.slice(0, colonIdx).trim();
+      let value = trimmed.slice(colonIdx + 1).trim();
+
+      while (stack.length > 1 && indent <= stack[stack.length - 1].indent) {
+        stack.pop();
+      }
+      const parent = stack[stack.length - 1].obj;
+
+      if (value === '') {
+        // No scalar on this line - it's the start of a nested mapping
+        const child = {};
+        parent[key] = child;
+        stack.push({ indent, obj: child });
+      } else {
+        if ((value.startsWith('"') && value.endsWith('"')) ||
+            (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1);
+        }
+        parent[key] = value;
+      }
+    }
+    return root;
+  }
+
+  let teamsCache = null;
+
+  async function fetchTeams(forceReload) {
+    if (teamsCache && !forceReload) return teamsCache;
+    const res = await fetch('../data/teams.yaml', { cache: 'no-store' });
+    if (!res.ok) throw new Error('Failed to load ../data/teams.yaml: HTTP ' + res.status);
+    const text = await res.text();
+    const parsed = parseSimpleYaml(text);
+    teamsCache = parsed.teams || {};
+    return teamsCache;
+  }
+
+  // window.loadTeam('omer') - looks up that team ID in teams.yaml and
+  // populates the flag/logo/name/university/submarine fields. Does NOT
+  // touch card visibility - combine with updateOverlay({visible:...})
+  // if you want a hide -> swap -> reveal transition between teams.
+  window.loadTeam = async function(teamId, options) {
+    try {
+      const teams = await fetchTeams(options && options.reload);
+      const team = teams[teamId];
+      if (!team) {
+        console.error('loadTeam: no entry for team id "' + teamId + '" in teams.yaml');
+        return;
+      }
+      updateOverlay(team);
+    } catch (err) {
+      console.error('loadTeam failed - is this page being served over http(s), not file://?', err);
+    }
+  };
+
+  // ---- Stopwatch helper --------------------------------------------------
+  // Two independent stopwatches: one for the "in set" / "in start" phase
+  // clock (shown inside the pill), one for the on-course clock (shown in
+  // the Time section). Tracked via Date.now() deltas so they don't drift
+  // even if the tab gets throttled in the background.
+  function createStopwatch() {
+    return {
+      elapsedMs: 0,
+      running: false,
+      startedAt: null,
+      start() {
+        if (!this.running) {
+          this.running = true;
+          this.startedAt = Date.now();
+        }
+      },
+      stop() {
+        if (this.running) {
+          this.elapsedMs = this.current();
+          this.running = false;
+          this.startedAt = null;
+        }
+      },
+      reset(ms) {
+        this.running = false;
+        this.startedAt = null;
+        this.elapsedMs = ms || 0;
+      },
+      current() {
+        return this.running ? this.elapsedMs + (Date.now() - this.startedAt) : this.elapsedMs;
+      }
+    };
+  }
+
+  const phaseTimer = createStopwatch();   // drives "IN SET" / "IN START" mm:ss in the pill
+  const courseTimer = createStopwatch();  // drives the Time section
+
+  function formatMs(ms) {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    return m + ':' + String(s).padStart(2, '0');
+  }
+
+  // Precise m:ss:ms format for the course timer (e.g. "1:23:456")
+  function formatMsPrecise(ms) {
+    const total = Math.max(0, Math.floor(ms));
+    const m = Math.floor(total / 60000);
+    const s = Math.floor((total % 60000) / 1000);
+    const millis = total % 1000;
+    return m + ':' + String(s).padStart(2, '0') + ':' + String(millis).padStart(3, '0');
+  }
+
+  // ---- Race phase state machine -----------------------------------------
+  // idle      - before a team is called up ("Clear" returns here)
+  // set       - "Go to set" pressed: pill "mm:ss | IN SET", 10 min allowed
+  // start     - "Go to start" pressed: pill "mm:ss | IN START", 5 min allowed
+  // oncourse  - "Start" pressed: pill "ON COURSE", course clock runs, speed/time text reveals
+  // finish    - "Finish" pressed: pill "FINISHED", course clock frozen
+  // abort     - "Abort" pressed: pill "ABORT", everything blanks to zero/hidden
+  const PHASE_CONFIG = {
+    idle:     { label: 'PREPARING', mode: 'idle' },
+    set:      { label: 'IN SET',    mode: 'phase', warnOrangeMs: 8 * 60 * 1000,  warnRedMs: 10 * 60 * 1000 },
+    start:    { label: 'IN START',  mode: 'phase', warnOrangeMs: 4 * 60 * 1000,  warnRedMs: 5 * 60 * 1000 },
+    oncourse: { label: 'ON COURSE', mode: 'course' },
+    finish:   { label: 'FINISHED',  mode: 'course' },
+    abort:    { label: 'ABORT',     mode: 'abort' }
+  };
+
+  const PILL_BG_NORMAL = 'rgb(79, 217, 211)';  // --sonar-cyan
+  const PILL_BG_ORANGE = 'rgb(230, 126, 34)';  // orange
+  const PILL_BG_RED    = 'rgb(122, 18, 32)';   // dark red
+  const PILL_FG_DARK   = 'rgb(5, 17, 25)';     // --abyss
+  const PILL_FG_BRIGHT = 'rgb(238, 246, 248)'; // --text-bright
+
+  let currentPhase = 'idle';
+  let gateTimes = { gate1: null, gate2: null }; // course-relative timestamps (ms) from courseTimer
+
+  // ---- Split speed calculation --------------------------------------------
+  const GATE_DISTANCE_M = 12.95;     // distance between Gate 1 and Gate 2, in meters
+  const MPS_TO_KNOTS = 1.943844;     // 1 m/s = 1.943844 knots
+
+  const SPEED_PLACEHOLDER = '-.-- kts';
+
+  function formatKnots(knots) {
+    return knots.toFixed(2) + ' kts';
+  }
+
+  function computeSplitSpeed() {
+    const speedEl = document.getElementById('speedValue');
+    if (gateTimes.gate1 === null || gateTimes.gate2 === null) return;
+
+    const splitMs = gateTimes.gate2 - gateTimes.gate1;
+    if (splitMs <= 0) {
+      // Gate 2 fired before/at Gate 1 - not a valid split, leave as-is
+      console.warn('computeSplitSpeed: non-positive split time, ignoring', gateTimes);
+      return;
+    }
+
+    const splitSeconds = splitMs / 1000;
+    const speedMps = GATE_DISTANCE_M / splitSeconds;
+    const speedKnots = speedMps * MPS_TO_KNOTS;
+    speedEl.textContent = formatKnots(speedKnots);
+  }
+
+  function renderPill() {
+    const pill = document.getElementById('statusPill');
+    const cfg = PHASE_CONFIG[currentPhase];
+
+    if (cfg.mode === 'phase') {
+      const ms = phaseTimer.current();
+      pill.textContent = formatMs(ms) + ' | ' + cfg.label;
+      if (ms >= cfg.warnRedMs) {
+        pill.style.background = PILL_BG_RED;
+        pill.style.color = PILL_FG_BRIGHT;
+      } else if (ms >= cfg.warnOrangeMs) {
+        pill.style.background = PILL_BG_ORANGE;
+        pill.style.color = PILL_FG_DARK;
+      } else {
+        pill.style.background = PILL_BG_NORMAL;
+        pill.style.color = PILL_FG_DARK;
+      }
+    } else if (cfg.mode === 'abort') {
+      pill.textContent = cfg.label;
+      pill.style.background = PILL_BG_RED;
+      pill.style.color = PILL_FG_BRIGHT;
+    } else {
+      // idle or course/finish - static label, neutral color
+      pill.textContent = cfg.label;
+      pill.style.background = PILL_BG_NORMAL;
+      pill.style.color = PILL_FG_DARK;
+    }
+  }
+
+  function renderCourseRow() {
+    document.getElementById('courseTimeValue').textContent = formatMsPrecise(courseTimer.current());
+    const statsActive = (currentPhase === 'oncourse' || currentPhase === 'finish');
+    document.getElementById('statsGroup').classList.toggle('is-active', statsActive);
+  }
+
+  function renderAll() {
+    renderPill();
+    renderCourseRow();
+  }
+
+  // ---- Public race control API --------------------------------------------
+  // Wire each Launchpad button to one of these action strings:
+  //   window.raceControl('toSet')    - "Go to set"   -> "mm:ss | IN SET", starts phase clock (8/10 min)
+  //   window.raceControl('toStart')  - "Go to start" -> "mm:ss | IN START", restarts phase clock (4/5 min)
+  //   window.raceControl('start')    - "Start"       -> "ON COURSE", stops phase clock, starts course clock
+  //   window.raceControl('gate1')    - "Gate 1"      -> records a course-relative split timestamp
+  //   window.raceControl('gate2')    - "Gate 2"      -> records the second split, then calculates and shows speed
+  //   window.raceControl('finish')   - "Finish"      -> "FINISHED", freezes course clock (final time stays on screen)
+  //   window.raceControl('abort')    - "Abort"       -> "ABORT", blanks both clocks to zero and hides speed/time text
+  //   window.raceControl('clear')    - explicit reset back to "READY" for the next team, hides speed/time text
+  window.raceControl = function(action) {
+    switch (action) {
+      case 'toSet':
+        currentPhase = 'set';
+        phaseTimer.reset(0);
+        phaseTimer.start();
+        break;
+      case 'toStart':
+        currentPhase = 'start';
+        phaseTimer.reset(0);
+        phaseTimer.start();
+        break;
+      case 'start':
+        currentPhase = 'oncourse';
+        phaseTimer.stop();
+        courseTimer.reset(0);
+        courseTimer.start();
+        gateTimes = { gate1: null, gate2: null };
+        document.getElementById('speedValue').textContent = SPEED_PLACEHOLDER;
+        break;
+      case 'gate1':
+        gateTimes.gate1 = courseTimer.current();
+        break;
+      case 'gate2':
+        gateTimes.gate2 = courseTimer.current();
+        computeSplitSpeed();
+        break;
+      case 'finish':
+        currentPhase = 'finish';
+        courseTimer.stop();
+        break;
+      case 'abort':
+        currentPhase = 'abort';
+        phaseTimer.reset(0);
+        courseTimer.reset(0);
+        break;
+      case 'clear':
+        currentPhase = 'idle';
+        phaseTimer.reset(0);
+        courseTimer.reset(0);
+        gateTimes = { gate1: null, gate2: null };
+        document.getElementById('speedValue').textContent = SPEED_PLACEHOLDER;
+        document.getElementById('courseTimeValue').textContent = formatMsPrecise(0);
+        break;
+      default:
+        console.warn('raceControl: unknown action "' + action + '"');
+        return;
+    }
+    renderAll();
+  };
+
+  // Single render loop, always running. Cheap, and avoids juggling
+  // separate intervals per timer/phase. Runs fast enough that the
+  // course timer's milliseconds look live rather than choppy.
+  setInterval(renderAll, 30);
+
+  // ---- Team metadata API (unchanged from before) -------------------------
+  // Call window.updateOverlay(data) with any subset of these fields:
+  //   flagCode, logoUrl, teamName, university, submarineName
+  //   visible   - boolean, slides the whole card in/out
+  //
+  // Example, once wired to your control stack over a WebSocket:
+  //   const ws = new WebSocket('ws://localhost:8765');
+  //   ws.onmessage = (e) => {
+  //     const msg = JSON.parse(e.data);
+  //     if (msg.raceAction) window.raceControl(msg.raceAction);
+  //     else window.updateOverlay(msg);
+  //   };
+
+  // ---- Flags ---------------------------------------------------------------
+  // All flags are stored locally in data/flags/, one file per flagCode
+  // (e.g. data/flags/CA.png, data/flags/QC.png). This HTML file lives in
+  // overlays/, so data/flags/ is one level up and over.
+  //
+  // Default convention: data/flags/{CODE}.png. If a particular flag's file
+  // doesn't follow that naming (different extension, different filename),
+  // add an explicit override here, keyed by flagCode.
+  const FLAGS_DIR = '../data/flags/';
+  const CUSTOM_FLAGS = {
+    // 'QC': FLAGS_DIR + 'QC.png',  // this one already matches the default convention, so it's not needed
+  };
+
+  function resolveFlagUrl(flagCode) {
+    const code = flagCode.toUpperCase();
+    return CUSTOM_FLAGS[code] || (FLAGS_DIR + code + '.png');
+  }
+
+  window.updateOverlay = function(data) {
+    const card = document.getElementById('card');
+
+    if (data.flagCode !== undefined) {
+      data.flagUrl = resolveFlagUrl(data.flagCode);
+      document.getElementById('flag').innerHTML =
+        '<img src="' + data.flagUrl + '" alt="">';
+    }
+    if (data.logoUrl !== undefined) {
+      document.getElementById('logoBadge').innerHTML =
+        '<img src="' + data.logoUrl + '" alt="">';
+    }
+    if (data.teamName !== undefined) {
+      document.getElementById('teamName').textContent = data.teamName;
+    }
+    if (data.university !== undefined) {
+      document.getElementById('university').textContent = data.university;
+    }
+    if (data.submarineName !== undefined) {
+      document.getElementById('submarineName').textContent = data.submarineName;
+    }
+    if (data.visible !== undefined) {
+      card.classList.toggle('is-visible', !!data.visible);
+    }
+  };
+
+  // ---- Remote control via obs-websocket -----------------------------------
+  // OBS's Browser Source plugin (obs-browser) supports a built-in
+  // obs-websocket vendor request called "emit_event", which dispatches a
+  // CustomEvent to every browser source's page. This lets your Python
+  // control stack drive this overlay directly through obs-websocket -
+  // no extra local server or polling needed.
+  //
+  // Python side (using obsws-python, same library as your Launchpad script):
+  //   import obsws_python as obs
+  //   cl = obs.ReqClient(host='localhost', port=4455, password='...')
+  //   cl.call_vendor_request(
+  //       vendor_name='obs-browser',
+  //       request_type='emit_event',
+  //       request_data={
+  //           'event_name': 'eisrTeamOverlay',
+  //           'event_data': {'raceAction': 'toSet'}       # or {'loadTeam': 'omer'}
+  //       }
+  //   )
+  //
+  // NOTE: emit_event broadcasts to ALL browser sources in this OBS
+  // instance, so 'eisrTeamOverlay' is a deliberately specific event name to
+  // avoid colliding with anything else you might add later.
+  window.addEventListener('eisrTeamOverlay', (event) => {
+    const data = event.detail;
+    if (!data) return;
+    if (data.raceAction !== undefined) window.raceControl(data.raceAction);
+    if (data.loadTeam !== undefined) window.loadTeam(data.loadTeam);
+    if (data.updateOverlay !== undefined) window.updateOverlay(data.updateOverlay);
+  });
+
+  // Loads DEFAULT_TEAM_ID from teams.yaml, then fades the card in.
+  window.addEventListener('load', async () => {
+    updateOverlay({ visible: false });
+    await window.loadTeam(DEFAULT_TEAM_ID);
+    renderAll();
+    requestAnimationFrame(() => {
+      updateOverlay({ visible: true });
+    });
+  });
+</script>
+
+</body>
+</html>

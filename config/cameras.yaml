@@ -1,0 +1,48 @@
+# RTSP camera source URLs.
+#
+# Toggling a camera off (see the toggle_camera buttons in
+# config/launchpad.yaml) clears the "input" field on the named OBS Media
+# Source (ffmpeg_source), so OBS fully stops decoding/receiving that stream
+# instead of just hiding it - this is what actually frees up bandwidth/CPU.
+# Toggling back on restores the URL from `url` below.
+#
+# `input` is the OBS input (source) name - the Media Source inside the
+# camera's scene, not necessarily the scene name itself, though by
+# convention they usually match when a scene has exactly one camera source.
+# Double check this against the actual source name in OBS if a toggle
+# doesn't seem to do anything.
+#
+# `url` is the camera's RTSP URL. These are PLACEHOLDERS - replace them with
+# the real URLs before using the toggle buttons live. Turning a camera off
+# and back on restores whatever is written here, so if a placeholder is
+# still in place when you toggle, the camera will come back with a bogus
+# URL rather than its real feed.
+
+cameras:
+  "UW Cam 1":
+    input: "UW Camera 1"
+    url: "rtsp://admin:subrace!@192.168.50.20:554/h265Preview_01_main"
+
+  "UW Cam 2":
+    input: "UW Camera 2"
+    url: "rtsp://admin:subrace!@192.168.50.21:554/h265Preview_01_main"
+
+  "UW Cam 3":
+    input: "UW Camera 3"
+    url: "rtsp://admin:subrace!@192.168.50.22:554/h265Preview_01_main"
+
+  "UW Cam 4":
+    input: "UW Camera 4"
+    url: "rtsp://admin:subrace!@192.168.50.23:554/h265Preview_01_main"
+
+  "PTZ Cam 1":
+    input: "PTZ Camera 1"
+    url: "rtsp://admin:subrace!@192.168.50.60:554/cam/realmonitor?channel=1&subtype=0"
+
+  "OH Cam 1":
+    input: "OH Camera 1"
+    url: "rtsp://admin:subrace!@192.168.50.50:554/h265Preview_01_main"
+
+  "OH Cam 2":
+    input: "OH Camera 2"
+    url: "rtsp://admin:subrace!@192.168.50.51:554/h265Preview_01_main"

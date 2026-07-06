@@ -1,0 +1,79 @@
+# Novation Launch Control - race-phase button configuration.
+# OBS connection settings live in config/obs.yaml (shared by all modules).
+#
+# ─── Launch Control layout (note numbers) ──────────────────────────────────
+#
+#  Top knobs (CC):    21  22  23  24  25  26  27  28   (unused for now)
+#  Lower knobs (CC):  41  42  43  44  45  46  47  48   (unused for now)
+#  Buttons (notes):    9  10  11  12  25  26  27  28
+#
+#  Not doing audio this time around, so the knobs are left unconfigured -
+#  see ../eISR-livestream/config_launch_control.yaml for the mute/volume
+#  version of this config if that functionality comes back later.
+#
+# `action` must match one of the action strings RaceController.trigger_phase()
+# understands (same set as overlays/team_overlay.html's window.raceControl()):
+# toSet, toStart, start, gate1, gate2, finish, abort, clear.
+# ─────────────────────────────────────────────────────────────────────────────
+
+devices:
+  launch_control: "Launch Control"
+
+# Velocity values for the mute/record button LEDs (same encoding as the
+# Launchpad S). All 8 of those buttons are already used for phase actions
+# below, so alive_led (if configured) will need a different button/pad -
+# see the note there about the Up/Down/Left/Right navigation pads.
+colors:
+  "off": 12
+  red: 15
+  green: 60
+  amber: 63
+
+# Blinks a button on/off every `interval` seconds, as a simple heartbeat
+# that the app + MIDI connection are alive. Left unconfigured for now: we
+# don't yet know the note/CC number for the Up/Down/Left/Right pads on the
+# right of the device, or whether they even have controllable LEDs (only
+# the mute/record row is documented as having them, and that's fully used
+# by the buttons below already).
+#
+# To find out: run `python -m launchpad.midi_probe "Launch Control"` while
+# connected, then press each candidate pad and read off the type/number it
+# prints. Once known, fill in here, e.g.:
+#   alive_led:
+#     type: note   # or "cc", depending on what midi_probe reports
+#     number: <the number midi_probe printed>
+#     interval: 5
+
+buttons:
+
+  9:
+    label: "To Set"
+    action: toSet
+
+  10:
+    label: "To Start"
+    action: toStart
+
+  11:
+    label: "Start"
+    action: start
+
+  12:
+    label: "Gate 1"
+    action: gate1
+
+  25:
+    label: "Gate 2"
+    action: gate2
+
+  26:
+    label: "Finish"
+    action: finish
+
+  27:
+    label: "Abort"
+    action: abort
+
+  28:
+    label: "Clear/New"
+    action: clear

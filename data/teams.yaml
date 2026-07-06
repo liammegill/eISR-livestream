@@ -1,0 +1,140 @@
+# eISR team overlay config
+#
+# Folder structure this file assumes:
+#   overlays/
+#     team_overlay.html
+#   data/
+#     flags/
+#     logos/
+#     teams.yaml   <- this file
+#
+# One entry per team, keyed by team ID (lowercase, no spaces - this is the
+# ID you'll pass to window.loadTeam('id') from the control stack / Launchpad).
+#
+# Fields per team:
+#   flagCode      - ISO country code (e.g. CA, DE, FR) used to look up the
+#                   flag image. Regional/subnational codes (e.g. QC) can be
+#                   added to CUSTOM_FLAGS in the HTML file instead - those
+#                   point at data/flags/.
+#   logoUrl       - path to the team logo, relative to team_overlay.html
+#                   (so ../data/logos/... since logos live in data/logos/).
+#                   Leave blank/omit to fall back to logoInitials.
+#   logoInitials  - 1-3 letters shown if logoUrl is not set
+#   teamName      - display name, e.g. "Team OMER"
+#   university    - full university/institution name
+#   submarineName - name of the submarine entry
+#   scoreboardTeam - the value of the "team" column on the subrace.eu results
+#                    feed, if it differs from this entry's ID (case-insensitive).
+#                    Used by overlays/last_runs_overlay.html to match feed rows
+#                    back to a team here. Omit when the feed value already
+#                    matches the ID (e.g. "omer" -> "Omer").
+
+teams:
+  default:
+    flagCode: GB
+    logoUrl: ../data/logos/logoT_eISR_white.png
+    teamName: eISR
+    university: European International Submarine Races, Gosport
+    submarineName: RIVERSHARK
+    captainName: William Megill
+
+  gdansk:
+    flagCode: PL
+    logoUrl: ../data/logos/logoT_Gdansk_white.png
+    teamName: Gdańsk Tech HPS Team
+    university: Gdańsk University of Technology, Gdańsk
+    submarineName: Nautilus III
+    captainName: Mateusz Sołtysiak
+
+  kumaraguru:
+    flagCode: IN
+    logoUrl: ../data/logos/logoT_INCRAFT.png
+    teamName: Team INCRAFT
+    university: Kumaraguru College of Technology, Coimbatore
+    submarineName: Timi
+    captainName: Sri Layaa Balamurugan
+    scoreboardTeam: INCRAFT
+
+  michigan:
+    flagCode: US
+    logoUrl: ../data/logos/logoT_HPS.png
+    teamName: Michigan HPS
+    university: University of Michigan, Ann Arbor
+    submarineName: Marlin
+    captainName: Madelyn Hoffhines
+    scoreboardTeam: HPS
+
+  ncku:
+    flagCode: TW
+    logoUrl: ../data/logos/logoT_NCKU.png
+    teamName: NCKU HPS
+    university: National Cheng Kung University, Tainan City
+    submarineName: AZURE
+    captainName: Hao-Chin Chen
+
+  omer:
+    flagCode: QC
+    logoUrl: ../data/logos/logoT_Omer.png
+    teamName: OMER
+    university: École de Technologie Supérieure, Montréal
+    submarineName: Omer XIV
+    captainName: Gabriel Bussière
+
+  sit:
+    flagCode: SG
+    logoUrl: ../data/logos/logoT_SIT.png
+    teamName: Team MAKO
+    university: Singapore Institute of Technology, Singapore
+    submarineName: Mako 3
+    captainName: Madhan Mathivanan
+
+  soton:
+    flagCode: GB
+    logoUrl: ../data/logos/logoT_Southampton.png
+    teamName: SUHPS
+    university: University of Southampton, Southampton
+    submarineName: BumbleSea
+    captainName: Joshua Crossley
+    scoreboardTeam: Southampton
+
+  subc:
+    flagCode: CA
+    logoUrl: ../data/logos/logoT_SUBC.png
+    teamName: SUBC
+    university: University of British Columbia, Vancouver
+    submarineName: Mari
+    captainName: Ashley Wong
+
+  uvic:
+    flagCode: CA
+    logoUrl: ../data/logos/logoT_UVic.png
+    teamName: UVic Submarine Racing Club
+    university: University of Victoria, Victoria
+    submarineName: Coho
+    captainName: Hannah Brown
+
+  uwhps:
+    flagCode: US
+    logoUrl: ../data/logos/logoT_UWHPS.png
+    teamName: UWHPS
+    university: University of Washington, Seattle
+    submarineName: Subwoofer II
+    captainName: Noah Adam
+
+  vt:
+    flagCode: US
+    logoUrl: ../data/logos/logoT_Virginia.png
+    teamName: VT Hokies
+    university: Virginia Tech, Blacksburg
+    submarineName: EXLIENNI
+    captainName: Nicole Quiram
+    scoreboardTeam: VT
+
+  warwick:
+    flagCode: GB
+    logoUrl: ../data/logos/logoT_WarwickSub.png
+    teamName: WarwickSub
+    university: University of Warwick, Coventry
+    submarineName: Godiva VII
+    captainName: Madeleine Pomroy
+    scoreboardTeam: WarwickSub
